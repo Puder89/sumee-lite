@@ -1,0 +1,23 @@
+name: Build IPA
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: List schemes
+        run: xcodebuild -list -project "SUMEE!.xcodeproj"
+      - name: Build unsigned
+        run: |
+          xcodebuild -project "SUMEE!.xcodeproj" -scheme "SUMEE!" \
+            -configuration Release -sdk iphoneos -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+      - name: Package IPA
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/*.app Payload/
+          zip -r SUMEE.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SUMEE-ipa
+          path: SUMEE.ipa
