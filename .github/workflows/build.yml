@@ -5,31 +5,28 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Patch incompatible modifiers
+      - name: Fix glassEffect syntax
         run: |
           python3 -c '
-          import glob
-          for filepath in glob.glob("sumee/**/*.swift", recursive=True):
-              with open(filepath, "r") as f:
+          files = [
+              "sumee/Views/Backgrounds/BubbleBackground.swift",
+              "sumee/Views/Core/HeaderView.swift"
+          ]
+          for path in files:
+              with open(path, "r") as f:
                   content = f.read()
-              if "glassEffect" in content:
-                  lines = content.splitlines()
-                  new_lines = [l for l in lines if "glassEffect" not in l and ".regular" not in l]
-                  with open(filepath, "w") as f:
-                      f.write("\n".join(new_lines))
+              # Replace the multi-line modifier block cleanly
+              content = content.replace(".glassEffect(\n        .regular\n    )", ".background(.ultraThinMaterial)")
+              content = content.replace(".glassEffect(.regular)", ".background(.ultraThinMaterial)")
+              with open(path, "w") as f:
+                  f.write(content)
           '
       - name: Build unsigned
         run: |
           xcodebuild -project "SUMEE!.xcodeproj" -scheme "SUMEE!" \
             -configuration Release -sdk iphoneos -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build > build.log 2>&1
-      - name: Upload build log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: build.log
+            build
       - name: Package IPA
         run: |
           mkdir Payload
