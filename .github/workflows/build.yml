@@ -5,21 +5,28 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Patch incompatible modifiers
+        run: |
+          python3 -c '
+          files = [
+              "sumee/Views/Backgrounds/BubbleBackground.swift",
+              "sumee/Views/Core/HeaderView.swift"
+          ]
+          for path in files:
+              with open(path, "r") as f:
+                  content = f.read()
+              # Replace custom glassEffect modifier with standard SwiftUI background
+              content = content.replace(".glassEffect(\n        .regular\n    )", ".background(.ultraThinMaterial)")
+              content = content.replace(".glassEffect(.regular)", ".background(.ultraThinMaterial)")
+              with open(path, "w") as f:
+                  f.write(content)
+          '
       - name: Build unsigned
         run: |
           xcodebuild -project "SUMEE!.xcodeproj" -scheme "SUMEE!" \
             -configuration Release -sdk iphoneos -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build > build.log 2>&1
-      - name: Show errors
-        if: failure()
-        run: grep -E "error:|BUILD FAILED" build.log | head -40
-      - name: Upload build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: build.log
+            build
       - name: Package IPA
         run: |
           mkdir Payload
