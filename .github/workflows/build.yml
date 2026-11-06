@@ -5,28 +5,44 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Fix glassEffect syntax
+      - name: Robustly strip glassEffect
         run: |
           python3 -c '
-          files = [
-              "sumee/Views/Backgrounds/BubbleBackground.swift",
-              "sumee/Views/Core/HeaderView.swift"
-          ]
-          for path in files:
-              with open(path, "r") as f:
-                  content = f.read()
-              # Replace the multi-line modifier block cleanly
-              content = content.replace(".glassEffect(\n        .regular\n    )", ".background(.ultraThinMaterial)")
-              content = content.replace(".glassEffect(.regular)", ".background(.ultraThinMaterial)")
-              with open(path, "w") as f:
-                  f.write(content)
+          import glob
+          for filepath in glob.glob("sumee/**/*.swift", recursive=True):
+              with open(filepath, "r") as f:
+                  lines = f.readlines()
+              new_lines = []
+              skip = False
+              for line in lines:
+                  if "glassEffect" in line:
+                      skip = True  # Start skipping multi-line modifier block if needed
+                      continue
+                  if skip:
+                      if ")" in line:
+                          skip = False
+                      continue
+                  if ".regular" in line:
+                      continue
+                  new_lines.append(line)
+              with open(filepath, "w") as f:
+                  f.writelines(new_lines)
           '
       - name: Build unsigned
         run: |
           xcodebuild -project "SUMEE!.xcodeproj" -scheme "SUMEE!" \
             -configuration Release -sdk iphoneos -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build
+            build > build.log 2>&1
+      - name: Show errors if failed
+        if: failure()
+        run: grep -E "error:|BUILD FAILED" build.log | head -40
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
       - name: Package IPA
         run: |
           mkdir Payload
